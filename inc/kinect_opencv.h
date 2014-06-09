@@ -11,4 +11,6 @@
 #define PIXEL_WIDTH 640
 #define PIXEL_HEIGHT 480
 
+#define ARUCO_OBJECT_DETECT_ID	9
+
 #endif /* KINECT_OPENCV_H_ */

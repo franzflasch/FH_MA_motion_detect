@@ -14,18 +14,17 @@
 #include <libfreenect.h>
 #include <unistd.h>
 #include <math.h>
+#include <iostream>
+#include <kinect_opencv.h>
+#include <motion_tracking.h>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/photo/photo.hpp>
-#include <kinect_opencv.h>
-#include <motion_tracking.h>
-#include <aruco/aruco.h>
-#include <aruco/boarddetector.h>
+#include <aruco_env.h>
+#include <ctrl_system.h>
 
 using namespace cv;
 using namespace std;
-using namespace aruco;
-
 
 /* freenect lowlevel global variables */
 freenect_context *f_ctx;
@@ -224,29 +223,7 @@ double measureTimeSince(timeval *time)
 
 int main( int argc, char** argv )
 {
-	if(argc<3) {cerr<<"Usage: boardConfig.yml [cameraParams.yml] [markerSize]  [outImage]"<<endl;exit(0);}
-
-	int outPutCnt = 0;
-	timeval currTime;    /* To measure the execution time */
-	double elapsedTime;  /* To measure the execution time */
-
-	CameraParameters CamParam;
-	MarkerDetector MDetector;
-	vector<Marker> Markers;
-	float MarkerSize=-1;
-	BoardConfiguration TheBoardConfig;
-	BoardDetector TheBoardDetector;
-	Board TheBoardDetected;
-
-	MotionDetection hexaMotionRgb(PIXEL_HEIGHT, PIXEL_WIDTH, 5, "Rgb", 25, 3, 40);
-	MotionDetection hexaMotionDepth(PIXEL_HEIGHT, PIXEL_WIDTH, 5, "Depth", 50, 10, 20);
-
-	int key = 0;
 	pthread_t freenect_thread;
-
-	TheBoardConfig.readFromFile(argv[1]);
-	CamParam.readFromXMLFile(argv[2]);
-	MarkerSize=atof(argv[3]);
 
 	/* get some memory */
 	depth_mid = (uint8_t*)malloc(PIXEL_WIDTH*PIXEL_HEIGHT*3);
@@ -263,6 +240,19 @@ int main( int argc, char** argv )
 
 	/* map the depth image array to an opencv Matrix */
 	Mat rgbImage_u8 = Mat(PIXEL_HEIGHT, PIXEL_WIDTH, CV_8UC3, rgb_front);
+
+	/* Initialize applicaton specific objects */
+	int outPutCnt = 0;
+	timeval currTime;    /* To measure the execution time */
+	double elapsedTime;  /* To measure the execution time */
+	int key = 0;
+	arucoEnv arucoObject(argv[1], argv[2], argv[3]);
+	MotionDetection hexaMotionRgb(PIXEL_HEIGHT, PIXEL_WIDTH, 5, "Rgb", 25, 3, 40);
+	MotionDetection hexaMotionDepth(PIXEL_HEIGHT, PIXEL_WIDTH, 5, "Depth", 50, 10, 20);
+	ControlSystem hexapodRobot;	/* Hexapod control object */
+
+	/* Input argument check */
+	if(argc<3) {cerr<<"Usage: boardConfig.yml [cameraParams.yml] [markerSize]  [outImage]"<<endl;exit(0);}
 
 	/* Start the kinect thread */
 	pthread_create(&freenect_thread, NULL, freenect_threadfunc, NULL);
@@ -290,7 +280,6 @@ int main( int argc, char** argv )
 		}
 		if (got_rgb)
 		{
-			Mat arucoDetectImage;
 			tmp = rgb_front;
 			rgb_front = rgb_mid;
 			rgb_mid = tmp;
@@ -307,28 +296,25 @@ int main( int argc, char** argv )
 			imshow( "Kinect RgbImage", rgbImage_u8 );
 
 			gettimeofday(&currTime, NULL);
-			arucoDetectImage = hexaMotionRgb.detectMotion(rgbImage_u8);;
-			//fastNlMeansDenoisingColored(rgbImage_u8,dst,5,5,3,7);
 
-			CamParam.resize( arucoDetectImage.size());
-//			MDetector.detect(dst,Markers);
-//			TheBoardDetector.detect( Markers, TheBoardConfig,TheBoardDetected, CamParam,MarkerSize);
-//
-//			for(unsigned int i=0;i<Markers.size();i++){
-//				cout<<Markers[i]<<endl;
-//				Markers[i].draw(dst,Scalar(0,0,255),2);
-//			}
+			arucoObject.processSingle(hexaMotionRgb.detectMotion(rgbImage_u8));
+			if(arucoObject.searchForMarkerId(ARUCO_OBJECT_DETECT_ID) == ARUCO_ENV_TRUE)
+			{
+				/* update current positions */
+				hexapodRobot.setCurrentPosition(X_POS,
+						(int)arucoObject.getMarker()[arucoObject.markerObjectToTrack].getCenter().x);
+				hexapodRobot.setCurrentPosition(Y_POS,
+						(int)arucoObject.getMarker()[arucoObject.markerObjectToTrack].getCenter().y);
+				printf("GOT OBJECT: current position: x: %d  y:%d\n", hexapodRobot.getCurrentPosition(X_POS),
+																	  hexapodRobot.getCurrentPosition(Y_POS));
+				imshow( "aruco Object", arucoObject.currentImage );
+			}
 
-	        MDetector.detect(arucoDetectImage,Markers,CamParam,MarkerSize);
-	        //for each marker, draw info and its boundaries in the image
-	        for (unsigned int i=0;i<Markers.size();i++) {
-	            cout<<Markers[i]<<endl;
-	            Markers[i].draw(arucoDetectImage,Scalar(0,0,255),2);
-	        }
+//			//fastNlMeansDenoisingColored(rgbImage_u8,dst,5,5,3,7);
 
 			elapsedTime = measureTimeSince(&currTime);
 			printf("Execution Time: %f\n", elapsedTime);
-			imshow( "Kinect RgbImage denoise", arucoDetectImage );
+//			imshow( "Kinect RgbImage denoise", arucoDetectImage );
 
 			//applicationFunc(depthImage_u8, rgbImage_u8);
 			//hexaMotionRgb.detectSift(rgbImage_u8);
