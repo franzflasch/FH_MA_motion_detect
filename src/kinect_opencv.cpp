@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <libfreenect.h>
+#include <libfreenect/libfreenect.h>
 #include <unistd.h>
 #include <math.h>
 #include <iostream>
@@ -157,12 +157,14 @@ void *freenect_threadfunc(void *arg)
 
 //	freenect_set_depth_callback(f_dev, depth_cb);
 //	freenect_set_depth_mode(f_dev, freenect_find_depth_mode(FREENECT_RESOLUTION_MEDIUM, FREENECT_DEPTH_11BIT));
-//	freenect_start_depth(f_dev);
 
 	freenect_set_video_callback(f_dev, rgb_cb);
 	freenect_set_video_mode(f_dev, freenect_find_video_mode(FREENECT_RESOLUTION_MEDIUM, FREENECT_VIDEO_RGB));
 	freenect_set_video_buffer(f_dev, rgb_back);
+
+
 	freenect_start_video(f_dev);
+	//freenect_start_depth(f_dev);
 
 	while (!stopKinectThread && freenect_process_events(f_ctx) >= 0)
 	{
@@ -224,6 +226,8 @@ double measureTimeSince(timeval *time)
 int main( int argc, char** argv )
 {
 	pthread_t freenect_thread;
+	uint8_t depth_ready = 0;
+	uint8_t rgb_ready = 0;
 
 	/* get some memory */
 	depth_mid = (uint8_t*)malloc(PIXEL_WIDTH*PIXEL_HEIGHT*3);
@@ -255,28 +259,25 @@ int main( int argc, char** argv )
 	if(argc<3) {cerr<<"Usage: boardConfig.yml [cameraParams.yml] [markerSize]  [outImage]"<<endl;exit(0);}
 
 	/* Start the kinect thread */
-	pthread_create(&freenect_thread, NULL, freenect_threadfunc, NULL);
+	if(pthread_create(&freenect_thread, NULL, freenect_threadfunc, NULL))
+	{
+		printf("pthread_create failed\n");
+		freenect_shutdown(f_ctx);
+		return 1;
+	}
 
 	do
 	{
-		pthread_mutex_lock(&gl_backbuf_mutex);
-//		while (!got_depth /*|| !got_rgb*/)
-//		{
-//			pthread_cond_wait(&gl_frame_cond, &gl_backbuf_mutex);
-//		}
-
+		/* image grabbing context */
 		uint8_t *tmp;
-
+		pthread_mutex_lock(&gl_backbuf_mutex);
 		if (got_depth)
 		{
 			tmp = depth_front;
 			depth_front = depth_mid;
 			depth_mid = tmp;
 			got_depth = 0;
-			depthImage_u8 = Mat(PIXEL_HEIGHT, PIXEL_WIDTH, CV_8UC3, depth_front);
-			cvtColor(depthImage_u8, depthImage_u8, CV_BGR2RGB);
-			//imshow( "Kinect DepthImage", depthImage_u8 );
-			//hexaMotionDepth.detectMotion(depthImage_u8);
+			depth_ready = 1;
 		}
 		if (got_rgb)
 		{
@@ -284,6 +285,23 @@ int main( int argc, char** argv )
 			rgb_front = rgb_mid;
 			rgb_mid = tmp;
 			got_rgb = 0;
+			rgb_ready = 1;
+		}
+		pthread_mutex_unlock(&gl_backbuf_mutex);
+
+
+		/* Image processing */
+		if(depth_ready)
+		{
+			depthImage_u8 = Mat(PIXEL_HEIGHT, PIXEL_WIDTH, CV_8UC3, depth_front);
+			cvtColor(depthImage_u8, depthImage_u8, CV_BGR2RGB);
+			//imshow( "Kinect DepthImage", depthImage_u8 );
+			//hexaMotionDepth.detectMotion(depthImage_u8);
+			depth_ready = 0;
+		}
+
+		if(rgb_ready)
+		{
 			rgbImage_u8 = Mat(PIXEL_HEIGHT, PIXEL_WIDTH, CV_8UC3, rgb_front);
 			cvtColor(rgbImage_u8, rgbImage_u8, CV_BGR2RGB);
 
@@ -318,8 +336,9 @@ int main( int argc, char** argv )
 
 			//applicationFunc(depthImage_u8, rgbImage_u8);
 			//hexaMotionRgb.detectSift(rgbImage_u8);
+			rgb_ready = 0;
 		}
-		pthread_mutex_unlock(&gl_backbuf_mutex);
+
 
 	} while((char)key != 27);
 
