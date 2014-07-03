@@ -225,6 +225,9 @@ double measureTimeSince(timeval *time)
 
 int main( int argc, char** argv )
 {
+	/* Input argument check */
+	if(argc<3) {cerr<<"Usage: boardConfig.yml [cameraParams.yml] [markerSize]  [outImage]"<<endl;exit(0);}
+
 	pthread_t freenect_thread;
 	uint8_t depth_ready = 0;
 	uint8_t rgb_ready = 0;
@@ -254,9 +257,6 @@ int main( int argc, char** argv )
 	MotionDetection hexaMotionRgb(PIXEL_HEIGHT, PIXEL_WIDTH, 5, "Rgb", 25, 3, 40);
 	MotionDetection hexaMotionDepth(PIXEL_HEIGHT, PIXEL_WIDTH, 5, "Depth", 50, 10, 20);
 	ControlSystem hexapodRobot;	/* Hexapod control object */
-
-	/* Input argument check */
-	if(argc<3) {cerr<<"Usage: boardConfig.yml [cameraParams.yml] [markerSize]  [outImage]"<<endl;exit(0);}
 
 	/* Start the kinect thread */
 	if(pthread_create(&freenect_thread, NULL, freenect_threadfunc, NULL))
