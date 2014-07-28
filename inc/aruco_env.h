@@ -16,6 +16,9 @@
 using namespace cv;
 using namespace aruco;
 
+/* Markers on the cube */
+const int objectMarkerList[] = {705, 706, 707, 708, 0};
+
 class arucoEnv
 {
 	#define ARUCO_ENV_TRUE	1
@@ -29,6 +32,7 @@ class arucoEnv
 		Board TheBoardDetected;
 		vector<Marker> Markers;
 		float MarkerSize;
+		const int *multipleMarkerList;
 
 	public:
 		int markerObjectToTrack;
@@ -36,6 +40,7 @@ class arucoEnv
 
 		vector<Marker> getMarker(void);
 		int searchForMarkerId(int markerIdToSearch);
+		int searchForMarkerIdFromList(void);
 		void processSingle(Mat image);
 
 		arucoEnv(char *boardConfig, char* cameraParam, char *markerSize)
@@ -44,6 +49,11 @@ class arucoEnv
 			TheBoardConfig.readFromFile(boardConfig);
 			CamParam.readFromXMLFile(cameraParam);
 			MarkerSize=atof(markerSize);
+			MDetector.setThresholdParams( 21, 7);
+			MDetector.setCornerRefinementMethod(aruco::MarkerDetector::SUBPIX);
+			//MDetector.setWarpSize((D[0].n()+2)*8);
+			MDetector.setMinMaxSize(0.005, 0.5);
+			multipleMarkerList = &objectMarkerList[0];
 		}
 
 #if 0

@@ -5,6 +5,8 @@
  *      Author: franz
  */
 #include <aruco_env.h>
+#include <opencv2/calib3d/calib3d.hpp>
+#include <math.h>
 
 vector<Marker> arucoEnv::getMarker(void)
 {
@@ -17,8 +19,32 @@ int arucoEnv::searchForMarkerId(int markerIdToSearch)
 	{
 		if(Markers[i].id == markerIdToSearch)
 		{
-			markerObjectToTrack = i;
 			return ARUCO_ENV_TRUE;
+		}
+	}
+	return ARUCO_ENV_FALSE;
+}
+
+int arucoEnv::searchForMarkerIdFromList(void)
+{
+	unsigned int i = 0;
+	unsigned int j = 0;
+
+	for (i=0;i<Markers.size();i++)
+	{
+		j = 0;
+		while(true)
+		{
+			if(Markers[i].id == multipleMarkerList[j])
+			{
+				markerObjectToTrack = i;
+				return ARUCO_ENV_TRUE;
+			}
+			if(multipleMarkerList[j] == 0)
+			{
+				break;
+			}
+			j++;
 		}
 	}
 	markerObjectToTrack = -1;
@@ -27,13 +53,69 @@ int arucoEnv::searchForMarkerId(int markerIdToSearch)
 
 void arucoEnv::processSingle(Mat image)
 {
+	Mat rotMatrix;
 	currentImage = image;
 	CamParam.resize( currentImage.size());
 	MDetector.detect(currentImage,Markers,CamParam,MarkerSize);
+	float angleDeg = 0;
+
 	//for each marker, draw info and its boundaries in the image
-	for (unsigned int i=0;i<Markers.size();i++) {
+	for (unsigned int i=0;i<Markers.size();i++)
+	{
 		cout<<Markers[i]<<endl;
 		Markers[i].draw(currentImage,Scalar(0,0,255),2);
+
+		cv::Rodrigues(Markers[i].Rvec, rotMatrix);
+
+//		printf("%f  %f  %f\n", rotMatrix.ptr<float>(0)[0], rotMatrix.ptr<float>(0)[1], rotMatrix.ptr<float>(0)[2]);
+//		printf("%f  %f  %f\n", rotMatrix.ptr<float>(1)[0], rotMatrix.ptr<float>(1)[1], rotMatrix.ptr<float>(1)[2]);
+//		printf("%f  %f  %f\n", rotMatrix.ptr<float>(2)[0], rotMatrix.ptr<float>(2)[1], rotMatrix.ptr<float>(2)[2]);
+
+		fprintf( stderr,"%f  %f  %f\n", rotMatrix.ptr<float>(0)[0], rotMatrix.ptr<float>(1)[0], rotMatrix.ptr<float>(2)[0]);
+		fprintf( stderr,"%f  %f  %f\n", rotMatrix.ptr<float>(0)[1], rotMatrix.ptr<float>(1)[1], rotMatrix.ptr<float>(2)[1]);
+		fprintf( stderr,"%f  %f  %f\n", rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(1)[2], rotMatrix.ptr<float>(2)[2]);
+
+		if(Markers[i].id==705)
+		{
+			angleDeg = 57.2958*(atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[0]));
+			fprintf( stderr,"%f ID = %d correcting direction\n", angleDeg, Markers[i].id);
+		}
+		else if(Markers[i].id==706)
+		{
+			angleDeg = -((M_PI/2)-atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[1]));
+			angleDeg *= 57.2958;
+			fprintf( stderr,"%f ID = %d\n", angleDeg, Markers[i].id);
+		}
+		else if(Markers[i].id==707)
+		{
+			angleDeg = (atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[1]));
+			if(angleDeg < 0)
+			{
+				angleDeg=((M_PI)+angleDeg);
+			}
+			else
+			{
+				angleDeg=((-M_PI)+angleDeg);
+			}
+			angleDeg *= 57.2958;
+			fprintf( stderr,"%f ID = %d\n", angleDeg, Markers[i].id);
+		}
+		if(Markers[i].id==708)
+		{
+			angleDeg = (((M_PI/2))+atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[0]));
+			angleDeg *= 57.2958;
+			fprintf( stderr,"%f ID = %d correcting direction\n", angleDeg, Markers[i].id);
+		}
+
+		//fprintf( stderr,"%f\n", 57.2958*atan2(rotMatrix.ptr<float>(0)[0], rotMatrix.ptr<float>(0)[1]));
+
+		/* We just need one marker so break here*/
+		break;
+
+//		printf("MARKER X: %f\n", Markers[i].Rvec.ptr<float>(0)[0]);
+//		printf("MARKER Y: %f\n", Markers[i].Rvec.ptr<float>(0)[1]);
+//		printf("MARKER Z: %f\n", Markers[i].Rvec.ptr<float>(0)[2]);
+//		printf("MARKER Z: %f\n", Markers[i].Tvec.ptr<float>(0)[2]);
 	}
 }
 

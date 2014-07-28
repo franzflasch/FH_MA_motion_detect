@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <libfreenect/libfreenect.h>
+#include <libfreenect.h>
 #include <unistd.h>
 #include <math.h>
 #include <iostream>
@@ -22,6 +22,11 @@
 #include <opencv2/photo/photo.hpp>
 #include <aruco_env.h>
 #include <ctrl_system.h>
+
+extern "C"
+{
+	#include <websocket.h>
+}
 
 using namespace cv;
 using namespace std;
@@ -152,11 +157,11 @@ void *freenect_threadfunc(void *arg)
 		return NULL;
 	}
 
-	freenect_set_tilt_degs(f_dev, -21);
+	freenect_set_tilt_degs(f_dev, -25);
 	freenect_set_led(f_dev,LED_RED);
 
-//	freenect_set_depth_callback(f_dev, depth_cb);
-//	freenect_set_depth_mode(f_dev, freenect_find_depth_mode(FREENECT_RESOLUTION_MEDIUM, FREENECT_DEPTH_11BIT));
+	freenect_set_depth_callback(f_dev, depth_cb);
+	freenect_set_depth_mode(f_dev, freenect_find_depth_mode(FREENECT_RESOLUTION_MEDIUM, FREENECT_DEPTH_11BIT));
 
 	freenect_set_video_callback(f_dev, rgb_cb);
 	freenect_set_video_mode(f_dev, freenect_find_video_mode(FREENECT_RESOLUTION_MEDIUM, FREENECT_VIDEO_RGB));
@@ -164,7 +169,7 @@ void *freenect_threadfunc(void *arg)
 
 
 	freenect_start_video(f_dev);
-	//freenect_start_depth(f_dev);
+	freenect_start_depth(f_dev);
 
 	while (!stopKinectThread && freenect_process_events(f_ctx) >= 0)
 	{
@@ -253,17 +258,38 @@ int main( int argc, char** argv )
 	timeval currTime;    /* To measure the execution time */
 	double elapsedTime;  /* To measure the execution time */
 	int key = 0;
+
+	static webSocketState_s hexaWebSocketState;
+	if(initWebsocketContext(&hexaWebSocketState))
+	{
+		printf("Error when creating the websocket context\n");
+		return 1;
+	}
+
 	arucoEnv arucoObject(argv[1], argv[2], argv[3]);
-	MotionDetection hexaMotionRgb(PIXEL_HEIGHT, PIXEL_WIDTH, 5, "Rgb", 25, 3, 40);
+	MotionDetection hexaMotionRgb(PIXEL_HEIGHT, PIXEL_WIDTH, 15, "Rgb", 25, 3, 40);
 	MotionDetection hexaMotionDepth(PIXEL_HEIGHT, PIXEL_WIDTH, 5, "Depth", 50, 10, 20);
-	ControlSystem hexapodRobot;	/* Hexapod control object */
+	ControlSystem hexapodRobot(PIXEL_WIDTH,
+							   PIXEL_HEIGHT,
+							   1.1102/*~63°*/,
+							   55,
+							   &writeWebsocket,
+							   &hexaWebSocketState);
+
+//	for(int i = 0;i<5;i++)
+//	{
+//		hexapodRobot.hexaWalk(WALK_BACK, 1);
+//		usleep(1500000);
+//	}
+//
+//	return 0;
 
 	/* Start the kinect thread */
 	if(pthread_create(&freenect_thread, NULL, freenect_threadfunc, NULL))
 	{
 		printf("pthread_create failed\n");
 		freenect_shutdown(f_ctx);
-		return 1;
+		return 2;
 	}
 
 	do
@@ -289,13 +315,12 @@ int main( int argc, char** argv )
 		}
 		pthread_mutex_unlock(&gl_backbuf_mutex);
 
-
 		/* Image processing */
 		if(depth_ready)
 		{
 			depthImage_u8 = Mat(PIXEL_HEIGHT, PIXEL_WIDTH, CV_8UC3, depth_front);
 			cvtColor(depthImage_u8, depthImage_u8, CV_BGR2RGB);
-			//imshow( "Kinect DepthImage", depthImage_u8 );
+			imshow( "Kinect DepthImage", depthImage_u8 );
 			//hexaMotionDepth.detectMotion(depthImage_u8);
 			depth_ready = 0;
 		}
@@ -315,8 +340,11 @@ int main( int argc, char** argv )
 
 			gettimeofday(&currTime, NULL);
 
-			arucoObject.processSingle(hexaMotionRgb.detectMotion(rgbImage_u8));
-			if(arucoObject.searchForMarkerId(ARUCO_OBJECT_DETECT_ID) == ARUCO_ENV_TRUE)
+			//arucoObject.processSingle(hexaMotionRgb.detectMotion(rgbImage_u8));
+			arucoObject.processSingle(rgbImage_u8);
+			//imshow( "aruco Object", arucoObject.currentImage );
+
+			if(arucoObject.searchForMarkerIdFromList() == ARUCO_ENV_TRUE )
 			{
 				/* update current positions */
 				hexapodRobot.setCurrentPosition(X_POS,
@@ -325,7 +353,10 @@ int main( int argc, char** argv )
 						(int)arucoObject.getMarker()[arucoObject.markerObjectToTrack].getCenter().y);
 				printf("GOT OBJECT: current position: x: %d  y:%d\n", hexapodRobot.getCurrentPosition(X_POS),
 																	  hexapodRobot.getCurrentPosition(Y_POS));
+				hexapodRobot.update2DMap(arucoObject.getMarker()[arucoObject.markerObjectToTrack].Tvec.ptr<float>(0)[2]);
 				imshow( "aruco Object", arucoObject.currentImage );
+
+				hexapodRobot.hexaControl(40, 80);
 			}
 
 //			//fastNlMeansDenoisingColored(rgbImage_u8,dst,5,5,3,7);
@@ -338,7 +369,6 @@ int main( int argc, char** argv )
 			//hexaMotionRgb.detectSift(rgbImage_u8);
 			rgb_ready = 0;
 		}
-
 
 	} while((char)key != 27);
 
