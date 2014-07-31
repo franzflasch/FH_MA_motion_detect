@@ -63,6 +63,7 @@ hexaCtrl(struct libwebsocket_context *this,
 		case LWS_CALLBACK_CLIENT_WRITEABLE:
 			/* get notified as soon as we can write again */
 			libwebsocket_callback_on_writable(this, wsi);
+			usleep(700000); /* Give the hexapod some time to do his move */
 			pWebSocketStatus->writeable = 1;
 			break;
 

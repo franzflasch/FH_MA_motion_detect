@@ -51,6 +51,11 @@ int arucoEnv::searchForMarkerIdFromList(void)
 	return ARUCO_ENV_FALSE;
 }
 
+float arucoEnv::getObjectToTrackAngle(void)
+{
+	return angleRad;
+}
+
 void arucoEnv::processSingle(Mat image)
 {
 	Mat rotMatrix;
@@ -77,14 +82,17 @@ void arucoEnv::processSingle(Mat image)
 
 		if(Markers[i].id==705)
 		{
-			angleDeg = 57.2958*(atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[0]));
-			fprintf( stderr,"%f ID = %d correcting direction\n", angleDeg, Markers[i].id);
+			angleDeg = (atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[0]));
+			angleRad = angleDeg;
+			angleDeg *= 57.2958;
+			fprintf( stderr,"Deg: %f Rad: %f ID = %d correcting direction\n", angleDeg, angleRad, Markers[i].id);
 		}
 		else if(Markers[i].id==706)
 		{
 			angleDeg = -((M_PI/2)-atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[1]));
+			angleRad = angleDeg;
 			angleDeg *= 57.2958;
-			fprintf( stderr,"%f ID = %d\n", angleDeg, Markers[i].id);
+			fprintf( stderr,"Deg: %f Rad: %f ID = %d\n", angleDeg, angleRad, Markers[i].id);
 		}
 		else if(Markers[i].id==707)
 		{
@@ -97,14 +105,16 @@ void arucoEnv::processSingle(Mat image)
 			{
 				angleDeg=((-M_PI)+angleDeg);
 			}
+			angleRad = angleDeg;
 			angleDeg *= 57.2958;
-			fprintf( stderr,"%f ID = %d\n", angleDeg, Markers[i].id);
+			fprintf( stderr,"Deg: %f Rad: %f ID = %d\n", angleDeg, angleRad, Markers[i].id);
 		}
 		if(Markers[i].id==708)
 		{
 			angleDeg = (((M_PI/2))+atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[0]));
+			angleRad = angleDeg;
 			angleDeg *= 57.2958;
-			fprintf( stderr,"%f ID = %d correcting direction\n", angleDeg, Markers[i].id);
+			fprintf( stderr,"Deg: %f Rad: %f ID = %d correcting direction\n", angleDeg, angleRad, Markers[i].id);
 		}
 
 		//fprintf( stderr,"%f\n", 57.2958*atan2(rotMatrix.ptr<float>(0)[0], rotMatrix.ptr<float>(0)[1]));

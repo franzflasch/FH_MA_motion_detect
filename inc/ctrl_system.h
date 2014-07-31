@@ -52,6 +52,9 @@ class ControlSystem
 		void update2DMap(float objectDistance);
 		void hexaWalk(HEXA_MOVE_t DIRECTION, char steps);
 		void hexaControl(int setPointX, int setPointY);
+		void hexaControlRotate(int setPointX, int setPointY);
+
+		void hexaSetAngle(float angleRad);
 
 		ControlSystem(int pixWidth,
 					  int pixHeight,

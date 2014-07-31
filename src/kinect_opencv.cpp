@@ -11,6 +11,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+
+#include <sys/ipc.h>
+#include <sys/shm.h>
+
 #include <libfreenect.h>
 #include <unistd.h>
 #include <math.h>
@@ -30,6 +34,9 @@ extern "C"
 
 using namespace cv;
 using namespace std;
+
+int X_global_setpoint = 0;
+int Y_global_setpoint = 120;
 
 /* freenect lowlevel global variables */
 freenect_context *f_ctx;
@@ -228,10 +235,81 @@ double measureTimeSince(timeval *time)
    return elapsedTime;
 }
 
+#define MAXMYMEM 30
+
+int attachSharedMem(void)
+{
+	int shID;
+	int32_t *shrdMemPtr;
+
+	shID = shmget(2404, MAXMYMEM, IPC_CREAT | 0666);
+	if (shID >= 0)
+	{
+		shrdMemPtr = (int32_t *)shmat(shID, 0, 0);
+		if (shrdMemPtr==(void *)-1)
+		{
+			return -1;
+		}
+		else
+		{
+			/* Set default values */
+			shrdMemPtr[0] = X_global_setpoint;
+			shrdMemPtr[1] = Y_global_setpoint;
+			shmdt(shrdMemPtr);
+			return shID;
+		}
+	}
+	return -1;
+}
+
+int updateCoordinatesFromSharedMem(int shID)
+{
+	int32_t *shrdMemPtr;
+
+	shrdMemPtr = (int32_t *)shmat(shID, 0, 0);
+
+	if (shrdMemPtr==(void *)-1)
+	{
+		return -1;
+	}
+	else
+	{
+		X_global_setpoint = shrdMemPtr[0];
+		Y_global_setpoint = shrdMemPtr[1];
+		shmdt(shrdMemPtr);
+		return 0;
+	}
+}
+
+void detachSharedMem(int shID)
+{
+	/* Shared Memory erzeugen */
+	shID = shmget(2404, MAXMYMEM, 0666);
+	if (shID >= 0)
+	{
+		/* zerstöre den Shared Memory */
+		shmctl(shID, IPC_RMID, 0);
+	}
+	else
+	{
+		/* shmctl lief schief */
+		perror("shmctl");
+	}
+}
+
 int main( int argc, char** argv )
 {
 	/* Input argument check */
 	if(argc<3) {cerr<<"Usage: boardConfig.yml [cameraParams.yml] [markerSize]  [outImage]"<<endl;exit(0);}
+
+	int retVal = 1;
+	int shId = 0;
+
+	if((shId = attachSharedMem()) < 0)
+	{
+		printf("Error could not attach shared memory\n");
+		return retVal++;
+	}
 
 	pthread_t freenect_thread;
 	uint8_t depth_ready = 0;
@@ -263,7 +341,7 @@ int main( int argc, char** argv )
 	if(initWebsocketContext(&hexaWebSocketState))
 	{
 		printf("Error when creating the websocket context\n");
-		return 1;
+		return retVal++;
 	}
 
 	arucoEnv arucoObject(argv[1], argv[2], argv[3]);
@@ -276,20 +354,12 @@ int main( int argc, char** argv )
 							   &writeWebsocket,
 							   &hexaWebSocketState);
 
-//	for(int i = 0;i<5;i++)
-//	{
-//		hexapodRobot.hexaWalk(WALK_BACK, 1);
-//		usleep(1500000);
-//	}
-//
-//	return 0;
-
 	/* Start the kinect thread */
 	if(pthread_create(&freenect_thread, NULL, freenect_threadfunc, NULL))
 	{
 		printf("pthread_create failed\n");
 		freenect_shutdown(f_ctx);
-		return 2;
+		return retVal++;
 	}
 
 	do
@@ -354,25 +424,34 @@ int main( int argc, char** argv )
 				printf("GOT OBJECT: current position: x: %d  y:%d\n", hexapodRobot.getCurrentPosition(X_POS),
 																	  hexapodRobot.getCurrentPosition(Y_POS));
 				hexapodRobot.update2DMap(arucoObject.getMarker()[arucoObject.markerObjectToTrack].Tvec.ptr<float>(0)[2]);
+
+				/* Update the current object angle */
+				hexapodRobot.hexaSetAngle(arucoObject.getObjectToTrackAngle());
+
 				imshow( "aruco Object", arucoObject.currentImage );
 
-				hexapodRobot.hexaControl(40, 80);
-			}
+				/*
+				if(hexaWebSocketState.writeable)
+					hexapodRobot.hexaControl(40, 100);
+					*/
 
-//			//fastNlMeansDenoisingColored(rgbImage_u8,dst,5,5,3,7);
+				hexapodRobot.hexaControlRotate(X_global_setpoint, Y_global_setpoint);
+
+				updateCoordinatesFromSharedMem(shId);
+				printf("Coordinates from shared mem: X:%d Y: %d\n", X_global_setpoint, Y_global_setpoint);
+			}
 
 			elapsedTime = measureTimeSince(&currTime);
 			printf("Execution Time: %f\n", elapsedTime);
-//			imshow( "Kinect RgbImage denoise", arucoDetectImage );
 
-			//applicationFunc(depthImage_u8, rgbImage_u8);
-			//hexaMotionRgb.detectSift(rgbImage_u8);
 			rgb_ready = 0;
 		}
 
 	} while((char)key != 27);
 
 	stopKinectThread = 1;
+
+	detachSharedMem(shId);
 
 	//imwrite("depthout.jpg", depthImage_u8);
 	//writeDepthFile("kinectDepthValues.csv", depthValues_u16, PIXEL_HEIGHT, PIXEL_WIDTH);

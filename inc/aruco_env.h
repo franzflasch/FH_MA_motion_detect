@@ -33,6 +33,7 @@ class arucoEnv
 		vector<Marker> Markers;
 		float MarkerSize;
 		const int *multipleMarkerList;
+		float angleRad;
 
 	public:
 		int markerObjectToTrack;
@@ -42,6 +43,8 @@ class arucoEnv
 		int searchForMarkerId(int markerIdToSearch);
 		int searchForMarkerIdFromList(void);
 		void processSingle(Mat image);
+
+		float getObjectToTrackAngle(void);
 
 		arucoEnv(char *boardConfig, char* cameraParam, char *markerSize)
 		{
