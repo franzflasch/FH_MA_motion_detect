@@ -423,7 +423,9 @@ int main( int argc, char** argv )
 						(int)arucoObject.getMarker()[arucoObject.markerObjectToTrack].getCenter().y);
 				printf("GOT OBJECT: current position: x: %d  y:%d\n", hexapodRobot.getCurrentPosition(X_POS),
 																	  hexapodRobot.getCurrentPosition(Y_POS));
-				hexapodRobot.update2DMap(arucoObject.getMarker()[arucoObject.markerObjectToTrack].Tvec.ptr<float>(0)[2]);
+				hexapodRobot.update2DMap(arucoObject.getMarker()[arucoObject.markerObjectToTrack].Tvec.ptr<float>(0)[2],
+										 arucoObject.getCorrVal(GET_X),
+										 arucoObject.getCorrVal(GET_Y));
 
 				/* Update the current object angle */
 				hexapodRobot.hexaSetAngle(arucoObject.getObjectToTrackAngle());

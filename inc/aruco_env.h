@@ -24,6 +24,9 @@ class arucoEnv
 	#define ARUCO_ENV_TRUE	1
 	#define ARUCO_ENV_FALSE 0
 
+	#define GET_X 0
+	#define GET_Y 1
+
 	private:
 		CameraParameters CamParam;
 		MarkerDetector MDetector;
@@ -35,11 +38,17 @@ class arucoEnv
 		const int *multipleMarkerList;
 		float angleRad;
 
+		/* This is needed to correct the absolute 2D coordinates, as
+		 * the pixel position can vary depending on the Marker ID */
+		float xPosCorrectionVal;
+		float yPosCorrectionVal;
+
 	public:
 		int markerObjectToTrack;
 		Mat currentImage;
 
 		vector<Marker> getMarker(void);
+		float getCorrVal(int which);
 		int searchForMarkerId(int markerIdToSearch);
 		int searchForMarkerIdFromList(void);
 		void processSingle(Mat image);
@@ -57,6 +66,7 @@ class arucoEnv
 			//MDetector.setWarpSize((D[0].n()+2)*8);
 			MDetector.setMinMaxSize(0.005, 0.5);
 			multipleMarkerList = &objectMarkerList[0];
+			angleRad = 0;
 		}
 
 #if 0

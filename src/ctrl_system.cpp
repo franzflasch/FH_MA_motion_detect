@@ -21,7 +21,7 @@ void ControlSystem::setCurrentPosition(int which, int val)
 	currentPos[which] = val;
 }
 
-void ControlSystem::update2DMap(float objectDistance)
+void ControlSystem::update2DMap(float objectDistance, float xCorrectionVal, float yCorrectionVal)
 {
 	/* These values are identified by measuring - see master thesis */
 	#define PIXEL_FACTOR_ZERO 0.403061224f
@@ -38,13 +38,14 @@ void ControlSystem::update2DMap(float objectDistance)
 	/* Calculate the distance in cm from the middle of the picture */
 	x_2D_map = PIXEL_FACTOR_ZERO-((currentPos[Y_POS]-PIXEL_FACTOR_ZERO_OFFSET)*PIXEL_GROW_FACTOR);
 	x_2D_map = x_2D_map*(currentPos[X_POS]-(pixelWidth/2));
+	x_2D_map += xCorrectionVal;
 
 	/* OK, now we have the X value, now we can also calculate the Y value */
 	/* B is the hypothenuse */
 	y_2D_map = sqrt((distanceB*distanceB)-(x_2D_map*x_2D_map));
+	y_2D_map += yCorrectionVal;
 
-	fprintf( stderr,"2D: X %f  Y %f\n", x_2D_map, y_2D_map);
-
+	fprintf( stderr,"2D: X %f  Y %f  correctionX %f correctionY %f\n", x_2D_map, y_2D_map, xCorrectionVal, yCorrectionVal);
 	return;
 }
 
@@ -182,13 +183,16 @@ void ControlSystem::hexaControlRotate(int setPointX, int setPointY)
 	/* Get the distance between these points */
 	distance = sqrt(((setPointX - x_2D_map)*(setPointX - x_2D_map)) + ((setPointY - y_2D_map)*(setPointY - y_2D_map)));
 
-	if(angleBetween > 20)
+	if(distance > 15)
 	{
-		hexaWalk(leftRight, 1);
-	}
-	else if(distance > 20)
-	{
-		hexaWalk(WALK_FORWARD, 1);
+		if(angleBetween > 20)
+		{
+			hexaWalk(leftRight, 1);
+		}
+		else
+		{
+			hexaWalk(WALK_FORWARD, 1);
+		}
 	}
 
 //	angleBetween = skalarProd;

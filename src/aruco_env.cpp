@@ -56,6 +56,16 @@ float arucoEnv::getObjectToTrackAngle(void)
 	return angleRad;
 }
 
+float arucoEnv::getCorrVal(int which)
+{
+	if(which == GET_X)
+		return xPosCorrectionVal;
+	if(which == GET_Y)
+		return yPosCorrectionVal;
+	else
+		return 0;
+}
+
 void arucoEnv::processSingle(Mat image)
 {
 	Mat rotMatrix;
@@ -63,6 +73,7 @@ void arucoEnv::processSingle(Mat image)
 	CamParam.resize( currentImage.size());
 	MDetector.detect(currentImage,Markers,CamParam,MarkerSize);
 	float angleDeg = 0;
+	float angleRadTmp = 0;
 
 	//for each marker, draw info and its boundaries in the image
 	for (unsigned int i=0;i<Markers.size();i++)
@@ -82,6 +93,7 @@ void arucoEnv::processSingle(Mat image)
 
 		if(Markers[i].id==705)
 		{
+			angleRadTmp = (atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[0]));
 			angleDeg = (atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[0]));
 			angleRad = angleDeg;
 			angleDeg *= 57.2958;
@@ -89,6 +101,7 @@ void arucoEnv::processSingle(Mat image)
 		}
 		else if(Markers[i].id==706)
 		{
+			angleRadTmp = atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[1]);
 			angleDeg = -((M_PI/2)-atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[1]));
 			angleRad = angleDeg;
 			angleDeg *= 57.2958;
@@ -96,6 +109,7 @@ void arucoEnv::processSingle(Mat image)
 		}
 		else if(Markers[i].id==707)
 		{
+			angleRadTmp = atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[1]);
 			angleDeg = (atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[1]));
 			if(angleDeg < 0)
 			{
@@ -111,21 +125,18 @@ void arucoEnv::processSingle(Mat image)
 		}
 		if(Markers[i].id==708)
 		{
+			angleRadTmp = atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[0]);
 			angleDeg = (((M_PI/2))+atan2(rotMatrix.ptr<float>(0)[2], rotMatrix.ptr<float>(0)[0]));
 			angleRad = angleDeg;
 			angleDeg *= 57.2958;
 			fprintf( stderr,"Deg: %f Rad: %f ID = %d correcting direction\n", angleDeg, angleRad, Markers[i].id);
 		}
 
-		//fprintf( stderr,"%f\n", 57.2958*atan2(rotMatrix.ptr<float>(0)[0], rotMatrix.ptr<float>(0)[1]));
+		xPosCorrectionVal = 8*-sin(angleRadTmp);
+		yPosCorrectionVal = 8*cos(angleRadTmp);
 
 		/* We just need one marker so break here*/
 		break;
-
-//		printf("MARKER X: %f\n", Markers[i].Rvec.ptr<float>(0)[0]);
-//		printf("MARKER Y: %f\n", Markers[i].Rvec.ptr<float>(0)[1]);
-//		printf("MARKER Z: %f\n", Markers[i].Rvec.ptr<float>(0)[2]);
-//		printf("MARKER Z: %f\n", Markers[i].Tvec.ptr<float>(0)[2]);
 	}
 }
 

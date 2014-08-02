@@ -49,7 +49,7 @@ class ControlSystem
 
 		int getCurrentPosition(int which);
 		void setCurrentPosition(int which, int val);
-		void update2DMap(float objectDistance);
+		void update2DMap(float objectDistance, float xCorrectionVal = 0, float yCorrectionVal = 0);
 		void hexaWalk(HEXA_MOVE_t DIRECTION, char steps);
 		void hexaControl(int setPointX, int setPointY);
 		void hexaControlRotate(int setPointX, int setPointY);
